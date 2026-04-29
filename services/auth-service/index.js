@@ -2,6 +2,9 @@ const express = require('express');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const GOOGLE_CLIENT_ID = 'isi_dengan_client_id_google_nanti'; 
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 const app = express();
 app.use(express.json()); 
@@ -129,6 +132,61 @@ app.post('/logout', async (req, res) => {
         // Hapus refresh token dari database (Mekanisme Token Invalidation / Blacklist)
         await pool.query('UPDATE users SET refresh_token = NULL WHERE refresh_token = ?', [refresh_token]);
         res.status(200).json({ message: 'Logout berhasil' });
+    } catch (error) {
+        res.status(500).json({ error: 'Terjadi kesalahan server internal' });
+    }
+});
+
+// --- ENDPOINT: GOOGLE LOGIN ---
+app.post('/google', async (req, res) => {
+    const { credential } = req.body; // Token dari frontend Google Sign-In
+    if (!credential) return res.status(400).json({ error: 'Token Google wajib dikirim' });
+
+    try {
+        const ticket = await googleClient.verifyIdToken({
+            idToken: credential,
+            audience: GOOGLE_CLIENT_ID,
+        });
+        const { name, email, picture } = ticket.getPayload();
+
+        // Cek apakah user sudah terdaftar
+        const [rows] = await pool.query('SELECT * FROM users WHERE email = ?', [email]);
+        let userId;
+
+        if (rows.length === 0) {
+            // Jika belum ada, register otomatis (tanpa password)
+            const [result] = await pool.query(
+                'INSERT INTO users (name, email, picture, oauth_provider) VALUES (?, ?, ?, ?)',
+                [name, email, picture, 'google']
+            );
+            userId = result.insertId;
+        } else {
+            userId = rows[0].id;
+        }
+
+        // Buat Token JWT untuk sesi aplikasi kita
+        const accessToken = jwt.sign({ id: userId }, JWT_SECRET, { expiresIn: '15m' });
+        const refreshToken = jwt.sign({ id: userId }, REFRESH_SECRET, { expiresIn: '7d' });
+        
+        await pool.query('UPDATE users SET refresh_token = ? WHERE id = ?', [refreshToken, userId]);
+
+        res.json({ access_token: accessToken, refresh_token: refreshToken });
+    } catch (error) {
+        res.status(401).json({ error: 'Verifikasi token Google gagal' });
+    }
+});
+
+app.get('/profile', async (req, res) => {
+    // Mengambil ID user dari header yang disisipkan oleh API Gateway
+    const userId = req.headers['x-user-id']; 
+    if (!userId) return res.status(401).json({ error: 'Akses ditolak, ID tidak ditemukan' });
+
+    try {
+        // Ambil data user tanpa password
+        const [rows] = await pool.query('SELECT id, name, email, picture, oauth_provider FROM users WHERE id = ?', [userId]);
+        if (rows.length === 0) return res.status(404).json({ error: 'User tidak ditemukan' });
+        
+        res.json(rows[0]);
     } catch (error) {
         res.status(500).json({ error: 'Terjadi kesalahan server internal' });
     }
