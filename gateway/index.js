@@ -35,7 +35,10 @@ const verifyToken = (req, res, next) => {
 };
 
 // 3. Peta Routing (Routing per Service)
-// Khusus ke Auth Service TIDAK dicek tokennya (karena orang mau login/daftar)
+// Khusus Profile WAJIB dicek tokennya
+app.use('/auth/profile', verifyToken);
+
+// 2. Semua rute /auth (baik itu profile yang sudah lolos satpam, login, atau register) diteruskan ke sini
 app.use('/auth', createProxyMiddleware({ target: 'http://localhost:3001', changeOrigin: true }));
 
 // Produk: Kalau GET (lihat produk) boleh publik. Kalau POST/PUT/DELETE wajib ada token.
