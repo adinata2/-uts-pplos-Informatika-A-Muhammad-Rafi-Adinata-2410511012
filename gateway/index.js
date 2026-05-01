@@ -1,55 +1,110 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
-const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
-const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = 3000;
-const JWT_SECRET = 'fiyw37dnjdnakieuat297s'; 
+const SECRET_KEY = "key34527siak278dbya72d"; 
 
-app.use(cors());
+app.use(express.json()); 
 
-// 1. Basic Rate Limiting (60 req / menit)
+// --- 1. RATE LIMITING (Sesuai Syarat UTS) ---
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000, 
     max: 60, 
-    message: { error: 'Terlalu banyak request dari IP ini, silakan coba lagi setelah 1 menit.' }
+    message: { message: "Sabar Bos, jangan ngebut-ngebut!" }
 });
 app.use(limiter);
 
-// 2. MIDDLEWARE: Verifikasi JWT
-const verifyToken = (req, res, next) => {
-    // Ambil token dari header Authorization (Format: Bearer <token>)
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) return res.status(401).json({ error: 'Akses ditolak. Token tidak ditemukan.' });
-
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) return res.status(403).json({ error: 'Token tidak valid atau kedaluwarsa.' });
-        // Sisipkan ID user ke header agar bisa dibaca oleh service di belakangnya
-        req.headers['x-user-id'] = decoded.id;
+// --- 2. MIDDLEWARE PENGECEK TOKEN ---
+const authenticateJWT = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ message: "Berhenti! Mana Token kamu?" });
+    }
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, SECRET_KEY, (err, user) => {
+        if (err) return res.status(403).json({ message: "Token palsu atau sudah basi!" });
+        req.user = user;
         next();
     });
 };
 
-// 3. Peta Routing (Routing per Service)
-// Khusus Profile WAJIB dicek tokennya
-app.use('/auth/profile', verifyToken);
+// --- 3. PROXY KE AUTH SERVICE (Port 4000) ---
+app.use('/api/auth', (req, res, next) => {
+    req.url = req.originalUrl; 
+    createProxyMiddleware({ 
+        target: 'http://localhost:4000', 
+        changeOrigin: true,
+        on: {
+            proxyReq: (proxyReq, req) => {
+                // WAJIB: Ambil body yang sudah dibaca Gateway dan tulis ulang ke Auth Service
+                if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
+                    const bodyData = JSON.stringify(req.body);
+                    proxyReq.setHeader('Content-Type', 'application/json');
+                    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+                    proxyReq.write(bodyData);
+                }
+            }
+        }
+    })(req, res, next);
+});
 
-// 2. Semua rute /auth (baik itu profile yang sudah lolos satpam, login, atau register) diteruskan ke sini
-app.use('/auth', createProxyMiddleware({ target: 'http://localhost:3001', changeOrigin: true }));
+// --- 4. PROXY KE PRODUCT SERVICE (Port 8080) ---
+app.use('/api/products', authenticateJWT, (req, res, next) => {
+    req.url = req.originalUrl; 
+    createProxyMiddleware({
+        target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+        on: {
+            proxyReq: (proxyReq, req) => {
+                proxyReq.setHeader('Accept', 'application/json');
+                
+                // Meneruskan email dari token ke Laravel
+                if (req.user?.email) {
+                    proxyReq.setHeader('x-user-email', req.user.email);
+                }
 
-// Produk: Kalau GET (lihat produk) boleh publik. Kalau POST/PUT/DELETE wajib ada token.
-app.use('/products', (req, res, next) => {
-    if (req.method === 'GET') next();
-    else verifyToken(req, res, next);
-}, createProxyMiddleware({ target: 'http://localhost:8000', changeOrigin: true }));
+                // --- FIX PENDING: Tulis ulang Body JSON ---
+                if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
+                    const bodyData = JSON.stringify(req.body);
+                    proxyReq.setHeader('Content-Type', 'application/json');
+                    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+                    proxyReq.write(bodyData);
+                }
+            }
+        }
+    })(req, res, next);
+});
 
-// Orders: Seluruh transaksi pesanan WAJIB ada token
-app.use('/orders', verifyToken, createProxyMiddleware({ target: 'http://localhost:3002', changeOrigin: true }));
+// --- 5. PROXY KE ORDER SERVICE (Port 8081) ---
+app.use('/api/orders', authenticateJWT, (req, res, next) => {
+    req.url = req.originalUrl; 
+    createProxyMiddleware({
+        target: 'http://127.0.0.1:8081', // Kembali ke 8081 sesuai kodingan awalmu
+        changeOrigin: true,
+        on: {
+            proxyReq: (proxyReq, req) => {
+                proxyReq.setHeader('Accept', 'application/json');
+                
+                // Kirim email user ke Laravel
+                if (req.user?.email) {
+                    proxyReq.setHeader('x-user-email', req.user.email);
+                }
+                
+                // Handler agar request POST tidak "Pending"
+                if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
+                    const bodyData = JSON.stringify(req.body);
+                    proxyReq.setHeader('Content-Type', 'application/json');
+                    proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+                    proxyReq.write(bodyData);
+                }
+            }
+        }
+    })(req, res, next);
+});
 
-app.get('/', (req, res) => res.json({ message: 'API Gateway Mini E-Commerce berjalan.' }));
-
-app.listen(PORT, () => console.log(`API Gateway berjalan di http://localhost:${PORT}`));
+app.listen(PORT, () => {
+    console.log(`API Gateway Siap Berjaga di http://127.0.0.1:${PORT}`);
+});
