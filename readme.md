@@ -1,10 +1,10 @@
-# 🛍️ UTS Microservices E-Commerce
+# UTS Microservices E-Commerce
 
 Sistem E-Commerce berbasis Arsitektur Microservices yang memisahkan fungsionalitas ke dalam layanan independen (Gateway, Auth, Product, dan Order). Proyek ini dilengkapi dengan pengamanan sesi (JWT & Google OAuth), Rate Limiting, dan sinkronisasi data antar-database menggunakan Database Transaction.
 
 ---
 
-## 👨‍💻 Identitas
+## Identitas
 
 - **Nama:** Muhammad Rafi Adinata
 - **NIM:** 2410511012
@@ -13,7 +13,7 @@ Sistem E-Commerce berbasis Arsitektur Microservices yang memisahkan fungsionalit
 
 ---
 
-## 🚀 Cara Menjalankan
+## Cara Menjalankan
 
 Proyek ini menggunakan **Docker** untuk mempermudah instalasi *database* dan membutuhkan **Node.js** serta **PHP/Composer** untuk menjalankan servisnya. *(Catatan: Seluruh file `.env` sudah disertakan di dalam repository ini untuk kemudahan pengujian).*
 
