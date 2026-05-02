@@ -9,11 +9,11 @@ const SECRET_KEY = "key34527siak278dbya72d";
 
 app.use(express.json()); 
 
-// --- 1. RATE LIMITING (Sesuai Syarat UTS) ---
+// --- 1. RATE LIMITING ---
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000, 
-    max: 60, 
-    message: { message: "Sabar Bos, jangan ngebut-ngebut!" }
+    max: 60,
+    message: { message: "Sabar Bos, jangan dipencet terusss!" }
 });
 app.use(limiter);
 
@@ -39,7 +39,7 @@ app.use('/api/auth', (req, res, next) => {
         changeOrigin: true,
         on: {
             proxyReq: (proxyReq, req) => {
-                // WAJIB: Ambil body yang sudah dibaca Gateway dan tulis ulang ke Auth Service
+                // untuk Ambil body yang sudah dibaca Gateway dan tulis ulang ke Auth Service
                 if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
                     const bodyData = JSON.stringify(req.body);
                     proxyReq.setHeader('Content-Type', 'application/json');
@@ -66,7 +66,7 @@ app.use('/api/products', authenticateJWT, (req, res, next) => {
                     proxyReq.setHeader('x-user-email', req.user.email);
                 }
 
-                // --- FIX PENDING: Tulis ulang Body JSON ---
+            
                 if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
                     const bodyData = JSON.stringify(req.body);
                     proxyReq.setHeader('Content-Type', 'application/json');
@@ -82,7 +82,7 @@ app.use('/api/products', authenticateJWT, (req, res, next) => {
 app.use('/api/orders', authenticateJWT, (req, res, next) => {
     req.url = req.originalUrl; 
     createProxyMiddleware({
-        target: 'http://127.0.0.1:8081', // Kembali ke 8081 sesuai kodingan awalmu
+        target: 'http://127.0.0.1:8081',
         changeOrigin: true,
         on: {
             proxyReq: (proxyReq, req) => {
@@ -93,7 +93,7 @@ app.use('/api/orders', authenticateJWT, (req, res, next) => {
                     proxyReq.setHeader('x-user-email', req.user.email);
                 }
                 
-                // Handler agar request POST tidak "Pending"
+                
                 if (req.method !== 'GET' && req.body && Object.keys(req.body).length > 0) {
                     const bodyData = JSON.stringify(req.body);
                     proxyReq.setHeader('Content-Type', 'application/json');

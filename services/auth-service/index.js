@@ -18,15 +18,16 @@ const db = mysql.createConnection({
     port: 3307,
     user: 'root',
     password: 'root', 
-    database: 'auth_db'
+    database: 'auth_db',
+    timezone: '+07:00'
 });
 
 db.connect(err => {
     if (err) console.error('Gagal konek auth_db:', err);
-    else console.log('✅ Auth Service terhubung ke MySQL');
+    else console.log('Auth Service terhubung ke MySQL');
 });
 
-// --- HELPER: GENERATE TOKENS ---
+// --- GENERATE TOKENS ---
 const generateTokens = (user) => {
     const accessToken = jwt.sign(
         { id: user.id, email: user.email }, 
@@ -41,7 +42,6 @@ const generateTokens = (user) => {
     return { accessToken, refreshToken };
 };
 
-// --- RUTE DENGAN PREFIX LENGKAP (Agar sinkron dengan Gateway) ---
 
 app.post('/api/auth/register', async (req, res) => {
     const { name, email, password } = req.body;
@@ -100,10 +100,8 @@ app.post('/api/auth/logout', (req, res) => {
     });
 });
 
-// --- GOOGLE OAUTH DENGAN PREFIX ---
+// --- GOOGLE OAUTH ---
 app.get('/api/auth/google', (req, res) => {
-    // Pastikan REDIRECT_URI di .env atau variabel ini mengarah ke PORT 3000
-    // Contoh: http://localhost:3000/api/auth/google/callback
     const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${process.env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI)}&response_type=code&scope=profile%20email`;
     res.redirect(googleAuthUrl);
 });
@@ -150,4 +148,4 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => console.log(`🚀 Auth Service jalan di port ${PORT}`));
+app.listen(PORT, () => console.log(`Auth Service jalan di port ${PORT}`));

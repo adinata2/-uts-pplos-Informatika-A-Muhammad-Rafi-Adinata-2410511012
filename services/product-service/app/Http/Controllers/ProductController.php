@@ -8,17 +8,17 @@ use Illuminate\Support\Facades\Validator;
 
 class ProductController extends Controller
 {
-    // 1. Fungsi index: SEKARANG DENGAN PAGING & FILTERING
+   
     public function index(Request $request)
     {
         $query = Product::query();
 
-        // Fitur Filtering: Mencari berdasarkan nama produk jika ada parameter 'search'
+        
         if ($request->has('search')) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
 
-        // Fitur Paging: Mengambil per_page dari request, default 10
+       
         $perPage = $request->input('per_page', 10);
         $products = $query->paginate($perPage);
 
@@ -28,7 +28,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // 2. Fungsi show: Melihat detail produk
+    // 2. Fungsi: Melihat detail produk
     public function show($id)
     {
         $product = Product::find($id);
@@ -110,7 +110,7 @@ class ProductController extends Controller
         ]);
     }
 
-    // 5. Fungsi destroy: Menghapus produk
+    // 5. Fungsi Menghapus produk
     public function destroy($id)
     {
         $product = Product::find($id);
